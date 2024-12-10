@@ -8,7 +8,7 @@ mod state;
 use context::*;
 
 #[program]
-pub mod anchor_vault_q3_2024 {
+pub mod anchor_vault {
     use super::*;
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
