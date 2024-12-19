@@ -1,20 +1,21 @@
 use solana_program::{declare_id, entrypoint};
 use solana_program::{
     account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError,
-    pubkey::Pubkey, hash::hashv
+    pubkey::Pubkey,
+    msg,
+    program_error::ProgramError::InsufficientFunds,
 };
 
 declare_id!("8N7HDctX8F5qcXq849KhwPfUD2CNwiEf7ANLwfB2Sk9A");
 
 const PDA_MARKER: &[u8; 21] = b"ProgramDerivedAddress";
 
+#[cfg(test)]
+mod tests;
+
 entrypoint!(process_instruction);
 
-/// # Withdraw
-/// Handles withdrawing funds from a PDA that has previously had lamports deposited to it.
-/// Deposit can be handled on the client side as implementing it in the contract would require CPI and 
-/// therefore increasing CUs.
-pub fn process_instruction(_program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
+pub fn process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> ProgramResult {
     let [signer, vault] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -25,18 +26,44 @@ pub fn process_instruction(_program_id: &Pubkey, accounts: &[AccountInfo], data:
         data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
     ]);
     let bump = data[8];
-    let pda = hashv(&[
-        signer.key.as_ref(),
-        &[bump],
-        ID.as_ref(),
-        PDA_MARKER,
-    ]);
+    
+    // Calculate the expected PDA
+    let (expected_pda, _) = Pubkey::find_program_address(
+        &[
+            signer.key.as_ref(),
+            &[bump],
+            program_id.as_ref(),
+            PDA_MARKER,
+        ],
+        program_id,
+    );
 
-    assert_eq!(pda.to_bytes(), vault.key.as_ref());
+    // Verify the vault account is the expected PDA
+    assert_eq!(expected_pda, *vault.key);
 
-    **vault.try_borrow_mut_lamports()? -= lamports;
-    **signer.try_borrow_mut_lamports()? += lamports;
+    msg!(
+        "Before transfer - Vault balance: {}, Signer balance: {}, Transfer amount: {}", 
+        vault.lamports(), 
+        signer.lamports(),
+        lamports
+    );
+
+    // Check if vault has enough lamports
+    if vault.lamports() < lamports {
+        return Err(InsufficientFunds);
+    }
+
+    // Safe way to transfer lamports without simultaneous mutable borrows
+    **vault.try_borrow_mut_lamports()? = vault.lamports().checked_sub(lamports)
+        .ok_or(InsufficientFunds)?;
+    **signer.try_borrow_mut_lamports()? = signer.lamports().checked_add(lamports)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+
+    msg!(
+        "After transfer - Vault balance: {}, Signer balance: {}", 
+        vault.lamports(), 
+        signer.lamports()
+    );
 
     Ok(())
 }
-
