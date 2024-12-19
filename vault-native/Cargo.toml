@@ -1,0 +1,15 @@
+[package]
+name = "vault"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+
+[dependencies]
+solana-program = { version = "2.1.6"}
+
+[dev-dependencies]
+mollusk-svm = "0.0.6"
+solana-sdk = "2.0.14"
