@@ -2,9 +2,13 @@ use five8_const::decode_32_const;
 use pinocchio::entrypoint;
 use pinocchio::{
     account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError,
-    pubkey::Pubkey
+    pubkey::Pubkey,
+    msg,
 };
 use solana_nostd_sha256::hashv;
+
+#[cfg(test)]
+mod tests;
 
 const ID: [u8; 32] = decode_32_const("8N7HDctX8F5qcXq849KhwPfUD2CNwiEf7ANLwfB2Sk9A");
 
@@ -28,6 +32,15 @@ pub fn withdraw(_program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> 
         ID.as_ref(),
         PDA_MARKER,
     ]);
+    
+    unsafe{
+        msg!(
+        "Before transfer - Vault balance: {:?}, Signer balance: {:?}, Transfer amount: {}", 
+        vault.borrow_lamports_unchecked(),
+        signer.borrow_lamports_unchecked(),
+        lamports
+        );
+    }
 
     assert_eq!(&pda, vault.key().as_ref());
 
@@ -35,5 +48,14 @@ pub fn withdraw(_program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> 
         *vault.borrow_mut_lamports_unchecked() -= lamports;
         *signer.borrow_mut_lamports_unchecked() += lamports;
     }
+
+    unsafe {
+        msg!(
+        "After transfer - Vault balance: {}, Signer balance: {}", 
+        vault.borrow_lamports_unchecked(), 
+        signer.borrow_lamports_unchecked()
+        );
+    }
+
     Ok(())
 }

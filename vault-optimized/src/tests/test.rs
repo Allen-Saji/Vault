@@ -3,6 +3,7 @@ use solana_sdk::{
     program_pack::Pack,
     pubkey::Pubkey,
 };
+use solana_nostd_sha256::hashv;
 
 use crate::tests::setup;
 
@@ -13,15 +14,13 @@ fn withdraw_test() {
     let signer = Pubkey::new_from_array([0x2; 32]);
     
     // Find the correct bump value by searching
-    let (vault, bump) = Pubkey::find_program_address(
-        &[
-            signer.as_ref(),
-            &[255], // Initial bump guess
-            program_id.as_ref(),
-            b"ProgramDerivedAddress",
-        ],
-        &program_id,
-    );
+    let pda = hashv(&[
+        signer.as_ref(),
+        &[255],
+        program_id.as_ref(),
+        b"ProgramDerivedAddress",
+    ]);
+    let vault = Pubkey::new_from_array(pda);
 
     // Create signer account with initial lamports
     let initial_signer_balance = mollusk
@@ -45,7 +44,7 @@ fn withdraw_test() {
     // Prepare withdraw data with correct bump
     let withdraw_amount = 300_000u64;
     let mut data = withdraw_amount.to_le_bytes().to_vec();
-    data.push(bump);
+    data.push(255u8);
 
     // Prepare withdraw instruction
     let withdraw_instruction = Instruction::new_with_bytes(
